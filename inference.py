@@ -3,22 +3,17 @@ import torch
 import torch.nn as nn
 import chess
 from transformers import GPT2Model, GPT2Config, PreTrainedTokenizerFast
-from huggingface_hub import snapshot_download
 import torch.nn.functional as F
 
 
 # === Auto-download model from Hugging Face if not present ===
-model_dir = "model"
+model_dir = os.path.join(os.path.dirname(__file__), "model")
 
-if not os.path.exists(f"{model_dir}/model.pt"):
-    print("Downloading model from Hugging Face...")
-    snapshot_download(
-        repo_id="strumber/magnusTransformer",
-        repo_type="model",
-        local_dir=model_dir,
-        local_dir_use_symlinks=False
-    )
-    print("Download complete.")
+
+model_path = f"{model_dir}/model.pt"
+if not os.path.exists(model_path):
+    raise FileNotFoundError(f"Model file not found: {model_path}")
+
 
 # === GPT2Config (hardcoded, matches original config.json) ===
 config = GPT2Config(

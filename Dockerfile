@@ -1,19 +1,22 @@
-# Use a base Python image
+# Use a minimal base image
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install OS-level dependencies
-RUN apt-get update && apt-get install -y git && apt-get clean
+RUN python setup.py
 
-# Copy project files
-COPY . .
+# Install only necessary system dependencies
+RUN apt-get update && apt-get install -y git && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Copy only essential files
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
-# Expose port
+# Now copy only the required source files
+COPY main.py inference.py self_play.py test.py model/ /app/
+
+# Expose FastAPI port
 EXPOSE 8000
 
 # Start FastAPI app
