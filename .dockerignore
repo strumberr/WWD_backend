@@ -14,5 +14,4 @@ tests/
 Dockerfile
 fly.toml
 README.md
-setup.py
 uv.lock
