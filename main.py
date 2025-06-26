@@ -3,7 +3,18 @@ from pydantic import BaseModel, ConfigDict
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 from inference import predict_best_move
+import os
+import subprocess
 
+
+model_path = "model/model.pt"
+if not os.path.exists(model_path):
+    print("[INFO] Model not found. Running setup.py...")
+    result = subprocess.run(["python", "setup.py"], capture_output=True, text=True)
+    if result.returncode != 0:
+        print("[ERROR] setup.py failed:\n", result.stderr)
+    else:
+        print("[INFO] Model setup complete.")
 
 
 app = FastAPI()
@@ -49,6 +60,8 @@ class PredictionResponse(BaseModel):
 
 class BoardInput(BaseModel):
     board: str
+
+
 
 
 @app.get("/")
