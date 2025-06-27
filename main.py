@@ -5,8 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from inference import predict_best_move
 import os
 import subprocess
+from openai import OpenAI
+from dotenv import load_dotenv
+load_dotenv()
 
 
+
+# initial setup
 model_path = "model/model.pt"
 if not os.path.exists(model_path):
     print("[INFO] Model not found. Running setup.py...")
@@ -17,7 +22,14 @@ if not os.path.exists(model_path):
         print("[INFO] Model setup complete.")
 
 
+
 app = FastAPI()
+client = OpenAI(
+    base_url="https://api.studio.nebius.com/v1/",
+    api_key=os.environ.get("NEBIUS_API_KEY")
+)
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -54,12 +66,16 @@ class PredictionRequest(BaseModel):
 class PredictionResponse(BaseModel):
     """Output format for prediction results."""
     
-    predicted_move: str  # The predicted move in UCI format
-    confidence: float     # Confidence value for the prediction
+    predicted_move: str
+    confidence: float
 
 
 class BoardInput(BaseModel):
     board: str
+
+class ExplanationResponse(BaseModel):
+    explanation: str
+    move: str
 
 
 
@@ -111,3 +127,55 @@ def predict_move(request: BoardInput) -> PredictionResponse:
         predicted_move=str(predicted_move),
         confidence=float(confidence)
     )
+
+
+@app.post("/explain-move", response_model=ExplanationResponse)
+def explain_move(request: BoardInput) -> ExplanationResponse:
+    """
+    Uses OpenAI GPT to explain the predicted best move for the given board state.
+    
+    Args:
+        request (BoardInput): The current FEN board state.
+
+    Returns:
+        ExplanationResponse: Short explanation for why this move is strong.
+    """
+    predicted_move, _ = predict_best_move(request.board)
+    # predicted_move = request.predicted_move
+
+    prompt = (
+        f"You are Magnus Carlsen, a world chess champion. The board position is: '{request.board}' (FEN). "
+        f"The suggested move is '{predicted_move}'. "
+        f"Explain in clear, simple terms why this move is recommended. Use 2–3 short sentences. "
+        f"Speak confidently, but make it easy for new players to understand. Use a clean format: first describe what the move does, then why it's useful. "
+        f"Use basic chess words like 'attack', 'defend', 'center', 'open file', or 'check'. Avoid deep jargon."
+    )
+
+  
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-ai/DeepSeek-V3-0324-fast",
+            max_tokens=150,
+            temperature=0.6,
+            top_p=0.9,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are Magnus Carlsen: a world chess champion. Speak clearly, confidently, and in a way beginners can understand. "
+                        "Explain the suggested move using simple ideas and structure your response to show what the move does and why it's helpful."
+                    )
+                },
+                {"role": "user", "content": prompt}
+            ],
+        )
+        print(response)
+        explanation = response.choices[0].message.content.strip()
+
+
+        return ExplanationResponse(explanation=explanation, move=predicted_move)
+
+    except Exception as e:
+
+        return ExplanationResponse(explanation=f"[ERROR] Failed to get explanation: {str(e)}")
+    
